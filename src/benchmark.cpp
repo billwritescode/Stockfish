@@ -26,7 +26,6 @@
 #include "position.h"
 #include "search.h"
 #include "thread.h"
-#include "tt.h"
 #include "uci.h"
 
 using namespace std;
@@ -76,7 +75,7 @@ const vector<string> Defaults = {
   "8/8/3P3k/8/1p6/8/1P6/1K3n2 b - - 0 1",  // Nd2 - draw
 
   // 7-man positions
-  "8/R7/2q5/8/6k1/8/1P5p/K6R w - - 0 124", // Draw
+  "8/R7/2q5/8/6k1/8/1P5p/K6R w - - 0 124"  // Draw
 };
 
 } // namespace
@@ -92,8 +91,8 @@ const vector<string> Defaults = {
 void benchmark(const Position& current, istream& is) {
 
   string token;
-  Search::LimitsType limits;
   vector<string> fens;
+  Search::LimitsType limits;
 
   // Assign default values to missing arguments
   string ttSize    = (is >> token) ? token : "16";
@@ -104,10 +103,10 @@ void benchmark(const Position& current, istream& is) {
 
   Options["Hash"]    = ttSize;
   Options["Threads"] = threads;
-  TT.clear();
+  Search::clear();
 
   if (limitType == "time")
-      limits.movetime = stoi(limit); // movetime is in ms
+      limits.movetime = stoi(limit); // movetime is in millisecs
 
   else if (limitType == "nodes")
       limits.nodes = stoi(limit);
@@ -143,7 +142,6 @@ void benchmark(const Position& current, istream& is) {
   }
 
   uint64_t nodes = 0;
-  Search::StateStackPtr st;
   TimePoint elapsed = now();
 
   for (size_t i = 0; i < fens.size(); ++i)
@@ -153,13 +151,15 @@ void benchmark(const Position& current, istream& is) {
       cerr << "\nPosition: " << i + 1 << '/' << fens.size() << endl;
 
       if (limitType == "perft")
-          nodes += Search::perft<true>(pos, limits.depth * ONE_PLY);
+          nodes += Search::perft(pos, limits.depth * ONE_PLY);
 
       else
       {
+          Search::StateStackPtr st;
+          limits.startTime = now();
           Threads.start_thinking(pos, limits, st);
-          Threads.main()->join();
-          nodes += Search::RootPos.nodes_searched();
+          Threads.main()->wait_for_search_finished();
+          nodes += Threads.nodes_searched();
       }
   }
 
